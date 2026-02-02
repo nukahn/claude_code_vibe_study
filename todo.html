@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo List | 빛나는 우찬</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #111111;
+            --bg-card: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --border: #2a2a2a;
+            --danger: #ef4444;
+            --success: #22c55e;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+        }
+
+        .todo-form {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+
+        .todo-input {
+            flex: 1;
+            padding: 16px 20px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .todo-input:focus {
+            border-color: var(--accent);
+        }
+
+        .todo-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .add-btn {
+            padding: 16px 24px;
+            font-size: 1rem;
+            font-family: inherit;
+            font-weight: 500;
+            background: var(--accent);
+            border: none;
+            border-radius: 12px;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .add-btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+        }
+
+        .todo-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 16px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+
+        .stats-text {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .stats-text span {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .clear-btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-family: inherit;
+            background: transparent;
+            border: 1px solid var(--danger);
+            border-radius: 8px;
+            color: var(--danger);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: var(--danger);
+            color: var(--text-primary);
+        }
+
+        .todo-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .todo-item:hover {
+            border-color: var(--accent);
+        }
+
+        .todo-item.completed {
+            opacity: 0.6;
+        }
+
+        .todo-item.completed .todo-text {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+
+        .todo-checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--border);
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .todo-checkbox:hover {
+            border-color: var(--accent);
+        }
+
+        .todo-item.completed .todo-checkbox {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .todo-checkbox svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .todo-item.completed .todo-checkbox svg {
+            opacity: 1;
+        }
+
+        .todo-text {
+            flex: 1;
+            font-size: 1rem;
+            word-break: break-word;
+        }
+
+        .delete-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .delete-btn:hover {
+            border-color: var(--danger);
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .delete-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 24px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+        }
+
+        .back-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        @media (max-width: 480px) {
+            .todo-form {
+                flex-direction: column;
+            }
+
+            .add-btn {
+                width: 100%;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            돌아가기
+        </a>
+
+        <header class="header">
+            <h1>Todo List</h1>
+            <p>할 일을 관리하세요</p>
+        </header>
+
+        <form class="todo-form" id="todoForm">
+            <input type="text" class="todo-input" id="todoInput" placeholder="할 일을 입력하세요..." autocomplete="off">
+            <button type="submit" class="add-btn">추가</button>
+        </form>
+
+        <div class="todo-stats" id="todoStats" style="display: none;">
+            <span class="stats-text">총 <span id="totalCount">0</span>개 중 <span id="completedCount">0</span>개 완료</span>
+            <button class="clear-btn" id="clearCompleted">완료 항목 삭제</button>
+        </div>
+
+        <ul class="todo-list" id="todoList"></ul>
+
+        <div class="empty-state" id="emptyState">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <p>할 일이 없습니다.<br>새로운 할 일을 추가해보세요!</p>
+        </div>
+    </div>
+
+    <script>
+        const todoForm = document.getElementById('todoForm');
+        const todoInput = document.getElementById('todoInput');
+        const todoList = document.getElementById('todoList');
+        const todoStats = document.getElementById('todoStats');
+        const totalCount = document.getElementById('totalCount');
+        const completedCount = document.getElementById('completedCount');
+        const clearCompleted = document.getElementById('clearCompleted');
+        const emptyState = document.getElementById('emptyState');
+
+        let todos = JSON.parse(localStorage.getItem('todos')) || [];
+
+        function saveTodos() {
+            localStorage.setItem('todos', JSON.stringify(todos));
+        }
+
+        function renderTodos() {
+            todoList.innerHTML = '';
+
+            if (todos.length === 0) {
+                emptyState.style.display = 'block';
+                todoStats.style.display = 'none';
+            } else {
+                emptyState.style.display = 'none';
+                todoStats.style.display = 'flex';
+
+                const completed = todos.filter(todo => todo.completed).length;
+                totalCount.textContent = todos.length;
+                completedCount.textContent = completed;
+            }
+
+            todos.forEach((todo, index) => {
+                const li = document.createElement('li');
+                li.className = `todo-item ${todo.completed ? 'completed' : ''}`;
+                li.innerHTML = `
+                    <div class="todo-checkbox" onclick="toggleTodo(${index})">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <span class="todo-text">${escapeHtml(todo.text)}</span>
+                    <button class="delete-btn" onclick="deleteTodo(${index})">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </button>
+                `;
+                todoList.appendChild(li);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function addTodo(text) {
+            if (text.trim() === '') return;
+            todos.unshift({ text: text.trim(), completed: false });
+            saveTodos();
+            renderTodos();
+        }
+
+        function deleteTodo(index) {
+            todos.splice(index, 1);
+            saveTodos();
+            renderTodos();
+        }
+
+        function toggleTodo(index) {
+            todos[index].completed = !todos[index].completed;
+            saveTodos();
+            renderTodos();
+        }
+
+        function clearCompletedTodos() {
+            todos = todos.filter(todo => !todo.completed);
+            saveTodos();
+            renderTodos();
+        }
+
+        todoForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            addTodo(todoInput.value);
+            todoInput.value = '';
+            todoInput.focus();
+        });
+
+        clearCompleted.addEventListener('click', clearCompletedTodos);
+
+        renderTodos();
+    </script>
+</body>
+</html>
