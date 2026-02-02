@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 // Firebase imports
-import { db } from './firebaseConfig';
+import { db, auth } from './firebaseConfig';
 import {
   collection,
   addDoc,
@@ -23,8 +23,13 @@ import {
   doc,
   query,
   orderBy,
+  where,
   Timestamp,
 } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+
+// Auth Screen
+import AuthScreen from './AuthScreen';
 
 const EMOTIONS = [
   { emoji: '😊', label: '행복' },
@@ -41,23 +46,49 @@ const EMOTIONS = [
 const COLLECTION_NAME = 'diaries';
 
 export default function App() {
+  // 인증 상태
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // 일기 상태
   const [selectedEmotion, setSelectedEmotion] = useState(null);
   const [memo, setMemo] = useState('');
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // 앱 시작 시 Firestore에서 데이터 불러오기
+  // 인증 상태 감지
   useEffect(() => {
-    loadEntries();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+
+    return unsubscribe;
   }, []);
 
-  // Firestore에서 기록 불러오기
+  // 사용자가 로그인하면 해당 사용자의 일기만 불러오기
+  useEffect(() => {
+    if (user) {
+      loadEntries();
+    } else {
+      setEntries([]);
+    }
+  }, [user]);
+
+  // Firestore에서 현재 사용자의 기록만 불러오기
   const loadEntries = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       const diariesRef = collection(db, COLLECTION_NAME);
-      const q = query(diariesRef, orderBy('createdAt', 'desc'));
+      // 현재 로그인한 사용자의 일기만 가져오기
+      const q = query(
+        diariesRef,
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
       const querySnapshot = await getDocs(q);
 
       const loadedEntries = [];
@@ -74,16 +105,29 @@ export default function App() {
       setEntries(loadedEntries);
     } catch (error) {
       console.error('Firestore 데이터 로드 실패:', error);
-      Alert.alert('오류', 'Firebase 연결을 확인해주세요.\nfirebaseConfig.js 설정이 필요합니다.');
+      // 인덱스 에러 처리
+      if (error.code === 'failed-precondition') {
+        Alert.alert(
+          'Firestore 인덱스 필요',
+          'Firebase Console에서 복합 인덱스를 생성해주세요.\n\n콘솔 > Firestore > 인덱스 > 복합 인덱스 추가\n- 컬렉션: diaries\n- 필드: userId (오름차순), createdAt (내림차순)'
+        );
+      } else {
+        Alert.alert('오류', '데이터를 불러오는데 실패했습니다.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Firestore에 새 기록 저장
+  // Firestore에 새 기록 저장 (사용자 ID 포함)
   const handleSave = async () => {
     if (!selectedEmotion) {
       Alert.alert('알림', '오늘의 기분을 선택해주세요!');
+      return;
+    }
+
+    if (!user) {
+      Alert.alert('오류', '로그인이 필요합니다.');
       return;
     }
 
@@ -91,6 +135,8 @@ export default function App() {
       setSaving(true);
 
       const newEntry = {
+        userId: user.uid, // 사용자 ID 추가
+        userEmail: user.email, // 사용자 이메일 (선택적)
         emotion: {
           emoji: selectedEmotion.emoji,
           label: selectedEmotion.label,
@@ -116,10 +162,10 @@ export default function App() {
       setSelectedEmotion(null);
       setMemo('');
 
-      Alert.alert('저장 완료', '오늘의 감정이 Firestore에 저장되었습니다!');
+      Alert.alert('저장 완료', '오늘의 감정이 저장되었습니다!');
     } catch (error) {
       console.error('Firestore 저장 실패:', error);
-      Alert.alert('저장 실패', 'Firebase 설정을 확인해주세요.');
+      Alert.alert('저장 실패', '다시 시도해주세요.');
     } finally {
       setSaving(false);
     }
@@ -137,14 +183,33 @@ export default function App() {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Firestore에서 삭제
               await deleteDoc(doc(db, COLLECTION_NAME, id));
-
-              // 로컬 상태 업데이트
               setEntries(entries.filter((entry) => entry.id !== id));
             } catch (error) {
               console.error('삭제 실패:', error);
               Alert.alert('삭제 실패', '다시 시도해주세요.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 로그아웃
+  const handleLogout = () => {
+    Alert.alert(
+      '로그아웃',
+      '정말 로그아웃 하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '로그아웃',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await signOut(auth);
+            } catch (error) {
+              console.error('로그아웃 실패:', error);
             }
           },
         },
@@ -174,6 +239,28 @@ export default function App() {
     return formatDate(isoString).split(' ')[0];
   };
 
+  // 인증 로딩 중
+  if (authLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color="#6366f1" />
+        <Text style={styles.loadingText}>로딩 중...</Text>
+      </View>
+    );
+  }
+
+  // 로그인하지 않은 경우 로그인 화면 표시
+  if (!user) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <AuthScreen />
+      </>
+    );
+  }
+
+  // 로그인한 경우 일기 화면 표시
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -186,10 +273,17 @@ export default function App() {
       >
         {/* 헤더 */}
         <View style={styles.header}>
-          <Text style={styles.title}>Emotion Diary</Text>
-          <Text style={styles.subtitle}>오늘의 감정을 기록하세요</Text>
-          <View style={styles.firebaseBadge}>
-            <Text style={styles.firebaseBadgeText}>🔥 Firebase 연동</Text>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.title}>Emotion Diary</Text>
+              <Text style={styles.subtitle}>오늘의 감정을 기록하세요</Text>
+            </View>
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <Text style={styles.logoutText}>로그아웃</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.userEmail}>👤 {user.email}</Text>
           </View>
         </View>
 
@@ -252,7 +346,7 @@ export default function App() {
         <View style={styles.listSection}>
           <View style={styles.listHeader}>
             <Text style={styles.sectionTitle}>
-              지난 기록 {entries.length > 0 && `(${entries.length})`}
+              내 기록 {entries.length > 0 && `(${entries.length})`}
             </Text>
             <TouchableOpacity onPress={loadEntries} style={styles.refreshButton}>
               <Text style={styles.refreshText}>새로고침</Text>
@@ -262,7 +356,7 @@ export default function App() {
           {loading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color="#6366f1" />
-              <Text style={styles.loadingText}>불러오는 중...</Text>
+              <Text style={styles.loadingStateText}>불러오는 중...</Text>
             </View>
           ) : entries.length === 0 ? (
             <View style={styles.emptyState}>
@@ -306,6 +400,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0a0a0a',
   },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#0a0a0a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#a0a0a0',
+  },
   scrollContent: {
     padding: 24,
     paddingTop: 60,
@@ -313,6 +418,11 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 32,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   title: {
     fontSize: 32,
@@ -324,18 +434,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#a0a0a0',
   },
-  firebaseBadge: {
-    marginTop: 12,
-    backgroundColor: '#ff9100',
+  logoutButton: {
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
+    paddingVertical: 8,
   },
-  firebaseBadgeText: {
+  logoutText: {
     fontSize: 12,
-    color: '#ffffff',
-    fontWeight: '600',
+    color: '#ef4444',
+    fontWeight: '500',
+  },
+  userInfo: {
+    marginTop: 16,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 8,
+    padding: 12,
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#6366f1',
   },
   section: {
     marginBottom: 24,
@@ -425,7 +545,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  loadingText: {
+  loadingStateText: {
     marginTop: 16,
     fontSize: 14,
     color: '#a0a0a0',
